@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<title>LibSys · Resources</title>
+
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css">
+</head>
+
+<body>
+
+<div class="flex h-[100dvh]">
+
+    <aside id="sidebar" class="hidden w-60 shrink-0 bg-sidebar lg:block"></aside>
+
+    <main class="min-w-0 flex-1 overflow-y-auto">
+
+        <div class="sticky top-0 z-10 flex h-11 items-center gap-1 bg-surface px-3">
+            <button
+                type="button"
+                data-open-menu
+                aria-label="Open menu"
+                class="rounded-md p-1 text-ink-soft hover:bg-hover lg:hidden"
+            >
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <span class="px-1 text-[14px] text-ink-soft">Resources</span>
+        </div>
+
+        <div class="mx-auto w-full max-w-[960px] px-5 pb-16 pt-8 sm:px-12 sm:pt-12">
+
+            <h1 class="text-[32px] font-bold leading-tight tracking-[-0.01em]">Resources</h1>
+            <p class="mt-1.5 text-muted">Equipment and supplies at each branch, and who to contact for more.</p>
+
+            <div class="mt-8 flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-line">
+
+                <div id="locationFilters" role="tablist" aria-label="Branch" class="-mb-px flex flex-wrap gap-1"></div>
+
+                <div class="ml-auto flex items-center gap-2 pb-1.5">
+                    <label for="searchInput" class="sr-only">Search resources</label>
+                    <div class="relative">
+                        <svg class="pointer-events-none absolute left-1.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM15.5 15.5 20 20"/></svg>
+                        <input
+                            id="searchInput"
+                            type="search"
+                            placeholder="Search"
+                            class="w-36 rounded-md bg-transparent py-1 pl-7 pr-2 text-sm text-ink outline-none placeholder:text-muted hover:bg-hover focus:bg-hover sm:w-52"
+                        >
+                    </div>
+                    <button
+                        id="addResourceBtn"
+                        type="button"
+                        class="rounded-md bg-accent px-2.5 py-1 text-sm font-medium text-white hover:bg-accent-hover"
+                    >
+                        New
+                    </button>
+                </div>
+
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[640px] border-collapse text-[14px]">
+                    <thead>
+                        <tr class="border-b border-line text-left text-[13px] text-muted">
+                            <th scope="col" class="py-2 pr-3 font-normal">Name</th>
+                            <th scope="col" class="py-2 pr-3 font-normal">Branch</th>
+                            <th scope="col" class="py-2 pr-3 font-normal">Supplier</th>
+                            <th scope="col" class="py-2 pr-3 font-normal">Contact</th>
+                            <th scope="col" class="py-2 text-right font-normal">Quantity</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resourceRows">
+                        <tr><td colspan="5" class="py-10 text-center text-muted">Loading resources…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p id="resourceSummary" class="mt-3 text-[13px] text-muted"></p>
+
+        </div>
+
+    </main>
+
+</div>
+
+<!-- Add / edit dialog -->
+
+<div
+    id="resourceModal"
+    class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-[rgba(15,15,15,0.35)] p-4 pt-[8vh]"
+>
+    <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modalTitle"
+        class="modal-shadow w-full max-w-lg rounded-[10px] bg-surface"
+    >
+
+        <div class="flex items-center justify-between px-5 pt-4">
+            <h2 id="modalTitle" class="text-lg font-semibold">Edit resource</h2>
+            <button
+                id="closeModal"
+                type="button"
+                aria-label="Close"
+                class="rounded-md p-1 text-faint hover:bg-hover hover:text-ink"
+            >
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+        </div>
+
+        <form id="resourceForm" class="space-y-3.5 px-5 pb-5 pt-3" novalidate>
+
+            <div>
+                <label for="resourceName" class="block text-[13px] text-muted">Name</label>
+                <input id="resourceName" type="text" class="mt-1 w-full rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-[14px] text-ink outline-none focus:border-accent">
+            </div>
+
+            <div class="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+                <div>
+                    <label for="resourceLocation" class="block text-[13px] text-muted">Branch</label>
+                    <input id="resourceLocation" type="text" list="branchOptions" placeholder="{{firstBranch}}" class="mt-1 w-full rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-[14px] text-ink outline-none placeholder:text-faint focus:border-accent">
+                    <datalist id="branchOptions"></datalist>
+                </div>
+                <div>
+                    <label for="resourceQty" class="block text-[13px] text-muted">Quantity</label>
+                    <input id="resourceQty" type="number" min="0" class="mt-1 w-full rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-[14px] tabular-nums text-ink outline-none focus:border-accent">
+                </div>
+            </div>
+
+            <div>
+                <label for="resourceIcon" class="block text-[13px] text-muted">Icon</label>
+                <select id="resourceIcon" class="mt-1 w-full rounded-md border border-line-strong bg-surface px-2 py-1.5 text-[14px] text-ink outline-none focus:border-accent">
+                    <option value="">Box (default)</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="resourceSupplier" class="block text-[13px] text-muted">Supplier</label>
+                <input id="resourceSupplier" type="text" class="mt-1 w-full rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-[14px] text-ink outline-none focus:border-accent">
+            </div>
+
+            <div>
+                <label for="resourceContact" class="block text-[13px] text-muted">Contact</label>
+                <textarea id="resourceContact" rows="3" class="mt-1 w-full rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-[14px] text-ink outline-none focus:border-accent"></textarea>
+            </div>
+
+            <div>
+                <label for="resourceNotes" class="block text-[13px] text-muted">Notes</label>
+                <textarea id="resourceNotes" rows="4" class="mt-1 w-full rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-[14px] text-ink outline-none focus:border-accent"></textarea>
+            </div>
+
+            <p id="formError" role="alert" class="hidden rounded-md bg-danger-tint px-3 py-2 text-sm text-ink"></p>
+
+            <div class="flex items-center gap-2 pt-2">
+                <button id="deleteBtn" type="button" class="mr-auto rounded-md px-2 py-1.5 text-sm text-danger hover:bg-danger-tint">Delete</button>
+                <button id="cancelBtn" type="button" class="rounded-md px-3 py-1.5 text-sm text-ink-soft hover:bg-hover">Cancel</button>
+                <button id="saveBtn" type="submit" class="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60">Save</button>
+            </div>
+
+        </form>
+
+    </div>
+</div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.3";
+
+// sidebar.js lives in public/ and is served as-is, so load it at runtime:
+// Vite's dev server refuses a static import of a public file.
+const { requireSignIn, mountSidebar } = await import(/* @vite-ignore */ new URL("sidebar.js", document.baseURI).href);
+
+const supabaseClient = createClient(
+    "{{supabaseUrl}}",
+    "{{supabaseKey}}"
+);
+
+await requireSignIn(supabaseClient);
+mountSidebar(supabaseClient, "resources");
+
+let resources = [];
+let selectedResource = null;
+let selectedLocation = "All";
+
+// DOM elements
+const rowsEl = document.getElementById("resourceRows");
+const summaryEl = document.getElementById("resourceSummary");
+const filtersEl = document.getElementById("locationFilters");
+const branchOptions = document.getElementById("branchOptions");
+const modal = document.getElementById("resourceModal");
+const modalTitle = document.getElementById("modalTitle");
+const form = document.getElementById("resourceForm");
+const formError = document.getElementById("formError");
+
+const searchInput = document.getElementById("searchInput");
+const iconInput = document.getElementById("resourceIcon");
+const nameInput = document.getElementById("resourceName");
+const qtyInput = document.getElementById("resourceQty");
+const supplierInput = document.getElementById("resourceSupplier");
+const contactInput = document.getElementById("resourceContact");
+const notesInput = document.getElementById("resourceNotes");
+const locationInput = document.getElementById("resourceLocation");
+const addBtn = document.getElementById("addResourceBtn");
+const saveBtn = document.getElementById("saveBtn");
+const deleteBtn = document.getElementById("deleteBtn");
+const cancelBtn = document.getElementById("cancelBtn");
+const closeBtn = document.getElementById("closeModal");
+
+// Only admins can add, change or delete resources (the database enforces this).
+// Everyone else can open one to read it.
+const { data: adminCheck } = await supabaseClient.rpc("is_admin");
+const isAdmin = adminCheck === true;
+addBtn.classList.toggle("hidden", !isAdmin);
+
+const escapeHtml = (text) =>
+    String(text ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+const BOX_ICON =
+    '<svg class="h-[18px] w-[18px] shrink-0 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5zM3.5 7.5 12 12l8.5-4.5M12 12v9"/></svg>';
+
+// =========================
+// Branch tabs and search
+// =========================
+
+function renderLocationFilters() {
+
+    const locations = [
+        "All",
+        ...new Set(
+            resources
+                .map(r => r.location)
+                .filter(Boolean)
+                .sort()
+        )
+    ];
+
+    if (!locations.includes(selectedLocation)) selectedLocation = "All";
+
+    filtersEl.innerHTML = "";
+
+    locations.forEach(location => {
+
+        const selected = selectedLocation === location;
+        const btn = document.createElement("button");
+
+        btn.type = "button";
+        btn.textContent = location;
+        btn.setAttribute("role", "tab");
+        btn.setAttribute("aria-selected", String(selected));
+        btn.className =
+            "border-b-2 px-2 pb-2 pt-1 text-sm " +
+            (selected
+                ? "border-ink font-medium text-ink"
+                : "border-transparent text-muted hover:text-ink");
+
+        btn.onclick = () => {
+            selectedLocation = location;
+            renderLocationFilters();
+            applyFilters();
+        };
+
+        filtersEl.appendChild(btn);
+
+    });
+
+    branchOptions.innerHTML = locations
+        .slice(1)
+        .map(l => `<option value="${escapeHtml(l)}"></option>`)
+        .join("");
+
+}
+
+function applyFilters() {
+
+    const search = searchInput.value.toLowerCase();
+
+    const filtered = resources.filter(r => {
+
+        const matchesSearch =
+            (r.resource_name || "").toLowerCase().includes(search) ||
+            (r.supplier || "").toLowerCase().includes(search) ||
+            (r.contact || "").toLowerCase().includes(search) ||
+            (r.location || "").toLowerCase().includes(search) ||
+            (r.notes || "").toLowerCase().includes(search);
+
+        const matchesLocation =
+            selectedLocation === "All" ||
+            r.location === selectedLocation;
+
+        return matchesSearch && matchesLocation;
+
+    });
+
+    renderResources(filtered);
+
+}
+
+// =========================
+// Load icons and resources
+// =========================
+
+async function loadIcons() {
+
+    try {
+        const response = await fetch("icons/icons.json");
+        const icons = await response.json();
+
+        iconInput.innerHTML = '<option value="">Box (default)</option>';
+
+        icons.forEach(icon => {
+            const option = document.createElement("option");
+            option.value = icon;
+            option.textContent = icon.replace(/\.[^/.]+$/, "");
+            iconInput.appendChild(option);
+        });
+    } catch (err) {
+        console.error("Icons didn't load:", err);
+    }
+
+}
+
+async function loadResources() {
+
+    const { data, error } = await supabaseClient
+        .from("resources")
+        .select("*")
+        .order("resource_name");
+
+    if (error) {
+        console.error(error);
+        rowsEl.innerHTML = `<tr><td colspan="5" class="py-10 text-center text-muted">Resources didn't load. Check you're signed in, then reload the page.</td></tr>`;
+        summaryEl.textContent = "";
+        return;
+    }
+
+    resources = data || [];
+
+    renderLocationFilters();
+    applyFilters();
+
+}
+
+// =========================
+// Render the table
+// =========================
+
+function renderResources(list) {
+
+    const quantity = list.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
+    summaryEl.textContent = list.length ? `${plural(list.length, "resource")} · ${quantity} in stock` : "";
+
+    if (list.length === 0) {
+        rowsEl.innerHTML = `<tr><td colspan="5" class="py-10 text-center text-muted">${
+            resources.length ? "No resources match." : isAdmin ? "No resources yet. Add one with New." : "No resources yet."
+        }</td></tr>`;
+        return;
+    }
+
+    rowsEl.innerHTML = "";
+
+    list.forEach(resource => {
+
+        const row = document.createElement("tr");
+        const contactFirstLine = (resource.contact || "").split("\n")[0];
+        const icon = resource.icon
+            ? `<img src="icons/${encodeURIComponent(resource.icon)}" alt="" class="h-[18px] w-[18px] shrink-0 object-contain">`
+            : BOX_ICON;
+
+        row.tabIndex = 0;
+        row.className = "cursor-pointer border-b border-line hover:bg-hover focus:bg-hover focus:outline-none";
+        row.innerHTML = `
+            <td class="py-2 pr-3">
+                <div class="flex items-center gap-2">${icon}<span class="font-medium text-ink">${escapeHtml(resource.resource_name)}</span></div>
+            </td>
+            <td class="py-2 pr-3 text-ink-soft">${escapeHtml(resource.location || "")}</td>
+            <td class="py-2 pr-3 text-ink-soft">${escapeHtml(resource.supplier || "")}</td>
+            <td class="py-2 pr-3 text-ink-soft"><div class="max-w-[220px] truncate" title="${escapeHtml(resource.contact || "")}">${escapeHtml(contactFirstLine)}</div></td>
+            <td class="py-2 text-right tabular-nums text-ink">${escapeHtml(resource.quantity ?? 0)}</td>
+        `;
+
+        row.onclick = () => openModal(resource);
+        row.onkeydown = (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                openModal(resource);
+            }
+        };
+
+        rowsEl.appendChild(row);
+
+    });
+
+}
+
+// =========================
+// Dialog
+// =========================
+
+function showModal() {
+    formError.classList.add("hidden");
+    saveBtn.disabled = false;
+    saveBtn.textContent = "Save";
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    nameInput.focus();
+}
+
+function closeModal() {
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+}
+
+function showFormError(message) {
+    formError.textContent = message;
+    formError.classList.remove("hidden");
+}
+
+function openModal(resource) {
+
+    selectedResource = resource;
+    modalTitle.textContent = isAdmin ? "Edit resource" : resource.resource_name || "Resource";
+    locationInput.value = resource.location || "";
+    nameInput.value = resource.resource_name || "";
+    qtyInput.value = resource.quantity || 0;
+    supplierInput.value = resource.supplier || "";
+    contactInput.value = resource.contact || "";
+    notesInput.value = resource.notes || "";
+    iconInput.value = resource.icon || "";
+    deleteBtn.classList.toggle("hidden", !isAdmin);
+    saveBtn.classList.toggle("hidden", !isAdmin);
+    cancelBtn.textContent = isAdmin ? "Cancel" : "Close";
+    [nameInput, locationInput, qtyInput, supplierInput, contactInput, notesInput].forEach(el => { el.readOnly = !isAdmin; });
+    iconInput.disabled = !isAdmin;
+
+    showModal();
+
+}
+
+addBtn.onclick = () => {
+
+    selectedResource = null;
+    modalTitle.textContent = "New resource";
+    locationInput.value = selectedLocation === "All" ? "" : selectedLocation;
+    nameInput.value = "";
+    qtyInput.value = 0;
+    supplierInput.value = "";
+    contactInput.value = "";
+    notesInput.value = "";
+    iconInput.value = "";
+    deleteBtn.classList.add("hidden");
+
+    showModal();
+
+};
+
+// =========================
+// Save
+// =========================
+
+form.onsubmit = async (e) => {
+
+    e.preventDefault();
+    if (!isAdmin) return;
+
+    const record = {
+        resource_name: nameInput.value.trim(),
+        location: locationInput.value.trim(),
+        quantity: Number(qtyInput.value),
+        supplier: supplierInput.value.trim(),
+        contact: contactInput.value.trim(),
+        notes: notesInput.value.trim(),
+        icon: iconInput.value,
+    };
+
+    if (!record.resource_name) {
+        showFormError("Enter a name for the resource.");
+        nameInput.focus();
+        return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving…";
+
+    let error;
+
+    if (selectedResource) {
+        ({ error } = await supabaseClient
+            .from("resources")
+            .update(record)
+            .eq("id", selectedResource.id));
+    } else {
+        ({ error } = await supabaseClient
+            .from("resources")
+            .insert(record));
+    }
+
+    saveBtn.disabled = false;
+    saveBtn.textContent = "Save";
+
+    if (error) {
+        console.error(error);
+        showFormError(`The resource wasn't saved. ${error.message}`);
+        return;
+    }
+
+    closeModal();
+    await loadResources();
+
+};
+
+// =========================
+// Delete
+// =========================
+
+deleteBtn.onclick = async () => {
+
+    if (!selectedResource) return;
+
+    if (!confirm(`Delete "${selectedResource.resource_name}"? This can't be undone.`)) return;
+
+    const { error } = await supabaseClient
+        .from("resources")
+        .delete()
+        .eq("id", selectedResource.id);
+
+    if (error) {
+        console.error(error);
+        showFormError(`The resource wasn't deleted. ${error.message}`);
+        return;
+    }
+
+    closeModal();
+    await loadResources();
+
+};
+
+// =========================
+// Close
+// =========================
+
+closeBtn.onclick = closeModal;
+cancelBtn.onclick = closeModal;
+
+modal.onclick = (e) => {
+    if (e.target === modal) closeModal();
+};
+
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !modal.classList.contains("hidden")) closeModal();
+});
+
+searchInput.addEventListener("input", applyFilters);
+
+// =========================
+// Initial load
+// =========================
+
+await loadIcons();
+await loadResources();
+</script>
+</body>
+</html>

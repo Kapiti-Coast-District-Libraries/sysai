@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>LibSys · Usage</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="theme.css">
+</head>
+<body>
+  <div class="flex h-[100dvh]">
+    <aside id="sidebar" class="hidden w-60 shrink-0 bg-sidebar lg:block"></aside>
+
+    <main class="min-w-0 flex-1 overflow-y-auto">
+      <div class="flex items-center gap-2 px-3 py-2.5 text-[14px] text-ink-soft">
+        <button type="button" data-open-menu aria-label="Open menu" class="rounded-md p-1 text-faint hover:bg-hover hover:text-ink lg:hidden">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <span class="px-1">Usage</span>
+      </div>
+
+      <div class="mx-auto w-full max-w-[960px] px-5 pb-16 pt-8 sm:px-12 sm:pt-12">
+        <h1 class="text-[32px] font-bold leading-tight tracking-[-0.01em]">Usage</h1>
+        <p class="mt-1 text-muted">Questions people have asked, which models answered, and daily limits.</p>
+
+        <p id="authMessage" class="mt-8 text-muted">Checking access…</p>
+
+        <div id="dashboard" class="hidden">
+          <section class="mt-8" aria-label="Filters">
+            <form id="filters" class="flex flex-wrap items-end gap-3">
+              <label class="flex flex-col gap-1 text-[13px] text-muted">
+                From
+                <input type="date" id="start" class="h-9 rounded-md border border-line-strong bg-surface px-2.5 text-sm text-ink outline-none focus:border-accent">
+              </label>
+              <label class="flex flex-col gap-1 text-[13px] text-muted">
+                To
+                <input type="date" id="end" class="h-9 rounded-md border border-line-strong bg-surface px-2.5 text-sm text-ink outline-none focus:border-accent">
+              </label>
+              <label class="flex flex-col gap-1 text-[13px] text-muted">
+                Person
+                <select id="userFilter" class="h-9 min-w-[12rem] rounded-md border border-line-strong bg-surface px-2.5 text-sm text-ink outline-none focus:border-accent">
+                  <option value="">Everyone</option>
+                </select>
+              </label>
+              <div class="flex gap-1">
+                <button type="submit" class="h-9 rounded-md bg-accent px-3 text-sm font-medium text-white hover:bg-accent-hover">Apply</button>
+                <button type="button" id="resetFilters" class="h-9 rounded-md px-3 text-sm text-ink-soft hover:bg-hover">Reset</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="mt-8 flex gap-12" aria-label="Summary">
+            <div>
+              <div class="text-[13px] text-muted">Questions</div>
+              <div id="totalQuestions" class="mt-0.5 text-2xl font-semibold tabular-nums">0</div>
+            </div>
+            <div>
+              <div class="text-[13px] text-muted">People</div>
+              <div id="totalPeople" class="mt-0.5 text-2xl font-semibold tabular-nums">0</div>
+            </div>
+          </section>
+
+          <section class="mt-10" aria-labelledby="people-heading">
+            <h2 id="people-heading" class="border-b border-line pb-2 text-lg font-semibold">Questions by person</h2>
+            <div class="mt-3 overflow-x-auto">
+              <table class="w-full min-w-[360px] border-collapse text-sm">
+                <thead>
+                  <tr class="bg-sidebar text-left text-[13px] font-medium text-muted">
+                    <th class="border border-line px-3 py-1.5 font-medium">Account</th>
+                    <th class="border border-line px-3 py-1.5 text-right font-medium">Questions</th>
+                  </tr>
+                </thead>
+                <tbody id="peopleBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="mt-10" aria-labelledby="ai-model-heading">
+            <div class="border-b border-line pb-2">
+              <h2 id="ai-model-heading" class="text-lg font-semibold">AI model</h2>
+              <p class="text-[13px] text-muted">Which free model answers questions. If the main model fails or sends back nothing, LibSys asks the fallback. The list is OpenRouter's free models as of now.</p>
+            </div>
+            <form id="modelForm" class="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end" novalidate>
+              <label class="flex min-w-0 flex-col gap-1 text-[13px] text-muted">
+                Main model
+                <select id="mainModel" class="h-9 w-full min-w-0 rounded-md border border-line-strong bg-surface px-2.5 text-sm text-ink outline-none focus:border-accent"></select>
+              </label>
+              <label class="flex min-w-0 flex-col gap-1 text-[13px] text-muted">
+                Fallback
+                <select id="fallbackModel" class="h-9 w-full min-w-0 rounded-md border border-line-strong bg-surface px-2.5 text-sm text-ink outline-none focus:border-accent"></select>
+              </label>
+              <button type="submit" class="h-9 rounded-md border border-line-strong px-3 text-sm text-ink hover:bg-hover">Save</button>
+            </form>
+            <p id="modelStatus" role="status" class="mt-2 text-[13px] text-muted"></p>
+          </section>
+
+          <section class="mt-10" aria-labelledby="models-heading">
+            <div class="border-b border-line pb-2">
+              <h2 id="models-heading" class="text-lg font-semibold">Models used</h2>
+              <p class="text-[13px] text-muted">Which model answered each question. Uses the dates above, for everyone.</p>
+            </div>
+            <div class="mt-3 overflow-x-auto">
+              <table class="w-full min-w-[560px] border-collapse text-sm">
+                <thead>
+                  <tr class="bg-sidebar text-left text-[13px] font-medium text-muted">
+                    <th class="border border-line px-3 py-1.5 font-medium">Model</th>
+                    <th class="border border-line px-3 py-1.5 text-right font-medium">Answered</th>
+                    <th class="border border-line px-3 py-1.5 text-right font-medium">Failed</th>
+                    <th class="border border-line px-3 py-1.5 font-medium">Last used</th>
+                  </tr>
+                </thead>
+                <tbody id="modelsBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="mt-10" aria-labelledby="limits-heading">
+            <div class="border-b border-line pb-2">
+              <h2 id="limits-heading" class="text-lg font-semibold">Daily limits</h2>
+              <p class="text-[13px] text-muted">How many questions each person can ask per day. The count resets at midnight, New Zealand time. Failed requests don't count.</p>
+            </div>
+
+            <form id="defaultForm" class="mt-4 flex flex-wrap items-end gap-2" novalidate>
+              <label class="flex flex-col gap-1 text-[13px] text-muted">
+                Default for everyone
+                <input type="number" id="defaultLimit" min="0" step="1" inputmode="numeric" placeholder="No limit" class="h-9 w-32 rounded-md border border-line-strong bg-surface px-2.5 text-sm tabular-nums text-ink outline-none focus:border-accent">
+              </label>
+              <button type="submit" class="h-9 rounded-md border border-line-strong px-3 text-sm text-ink hover:bg-hover">Save</button>
+              <p id="defaultStatus" role="status" class="h-9 py-2 text-[13px] text-muted"></p>
+            </form>
+            <p class="mt-1 text-[13px] text-muted">Leave a limit blank for no limit. A person's own limit replaces the default.</p>
+
+            <div class="mt-4 overflow-x-auto">
+              <table class="w-full min-w-[560px] border-collapse text-sm">
+                <thead>
+                  <tr class="bg-sidebar text-left text-[13px] font-medium text-muted">
+                    <th class="border border-line px-3 py-1.5 font-medium">Account</th>
+                    <th class="border border-line px-3 py-1.5 text-right font-medium">Today</th>
+                    <th class="border border-line px-3 py-1.5 font-medium">Daily limit</th>
+                  </tr>
+                </thead>
+                <tbody id="limitsBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.95.3'
+  // Loaded by URL so the Vite dev server doesn't try to bundle it (it lives in public/).
+  const { requireSignIn, mountSidebar } = await import(/* @vite-ignore */ new URL("sidebar.js", document.baseURI).href);
+
+  const supabaseClient = createClient(
+    '{{supabaseUrl}}',
+    '{{supabaseKey}}'
+  )
+
+    const cell = "border border-line px-3 py-1.5";
+    const emptyRow = (columns, text) => `<tr><td colspan="${columns}" class="${cell} py-6 text-center text-muted">${text}</td></tr>`;
+    const escapeHtml = (text) =>
+      String(text ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    const formatTime = (value) =>
+      value ? new Date(value).toLocaleString("en-NZ", { dateStyle: "medium", timeStyle: "short", timeZone: "Pacific/Auckland" }) : "";
+
+    // A limit box: blank means no limit, otherwise a whole number of 0 or more.
+    function readLimit(input) {
+      const raw = input.value.trim();
+      if (raw === "") return { ok: true, value: null };
+      const value = Number(raw);
+      return Number.isInteger(value) && value >= 0 ? { ok: true, value } : { ok: false };
+    }
+
+    let defaultLimit = null;
+
+    async function loadUserDropdown(){
+      const { data, error } = await supabaseClient.rpc("admin_user_emails");
+      if(error){ console.error(error); return; }
+      const select = document.getElementById("userFilter");
+      data.forEach(u => {
+        const opt = document.createElement("option");
+        opt.value = u.id;
+        opt.textContent = u.email;
+        select.appendChild(opt);
+      });
+    }
+
+    async function checkAuth(){
+      const { data:{ user } } = await supabaseClient.auth.getUser();
+      const authMessage = document.getElementById("authMessage");
+
+      if(!user){
+        authMessage.textContent = "Your sign-in has expired. Sign in again to see usage.";
+        return;
+      }
+
+      // Admins are listed in the app_admins table; is_admin() checks the signed-in user.
+      const { data: isAdmin } = await supabaseClient.rpc('is_admin');
+      if(isAdmin !== true){
+        authMessage.innerHTML = 'Only a LibSys admin can see usage. <a href="index.html" class="text-ink underline decoration-[rgba(55,53,47,0.4)] underline-offset-2 hover:decoration-ink">Back to Support chat</a>';
+        return;
+      }
+
+      authMessage.remove();
+      document.getElementById("dashboard").classList.remove("hidden");
+      await loadUserDropdown();
+      loadAll();
+      loadChatModels();
+    }
+
+    const FREE_ROUTER = "openrouter/free";
+    // Same rule as admin_set_chat_models and libsys-chat: free models only.
+    const FREE_MODEL = /^(openrouter\/free|[A-Za-z0-9._-]+\/[A-Za-z0-9._:-]+:free)$/;
+    // Safety checkers label a question instead of answering it, and the chat skips their replies.
+    const CLASSIFIER = /safety|guard|moderat/i;
+
+    // OpenRouter's public model list, which needs no key, cut to the free chat models.
+    async function loadFreeModels(){
+      const res = await fetch("https://openrouter.ai/api/v1/models");
+      if(!res.ok) throw new Error(`OpenRouter returned ${res.status}`);
+      const { data } = await res.json();
+      return data
+        .filter(m => m.id.endsWith(":free") && FREE_MODEL.test(m.id) && !CLASSIFIER.test(m.id)
+          && (m.architecture?.output_modalities ?? ["text"]).includes("text"))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function modelLabel(m){
+      const notes = [];
+      if(m.context_length) notes.push(`${Math.round(m.context_length / 1000).toLocaleString()}k context`);
+      // Ink requests and chat-history emails are tool calls.
+      if(!(m.supported_parameters ?? []).includes("tools")) notes.push("can't do ink requests");
+      if(m.expiration_date) notes.push(`free until ${m.expiration_date}`);
+      return `${m.name.replace(/\s*\(free\)$/i, "")}${notes.length ? ` · ${notes.join(", ")}` : ""}`;
+    }
+
+    async function loadChatModels(){
+      const status = document.getElementById("modelStatus");
+      const [{ data: saved, error }, free] = await Promise.all([
+        supabaseClient.rpc("chat_models"),
+        loadFreeModels().catch(err => { console.error(err); return null; }),
+      ]);
+      if(error){ console.error(error); status.textContent = "The saved models didn't load. Reload the page to try again."; status.classList.add("text-danger"); return; }
+
+      const notes = [];
+      if(!free) notes.push("OpenRouter's model list didn't load, so only the free router and the saved models are listed.");
+      for(const [id, model] of [["mainModel", saved?.main ?? FREE_ROUTER], ["fallbackModel", saved?.fallback ?? FREE_ROUTER]]){
+        const select = document.getElementById(id);
+        const option = (value, text) => { const o = document.createElement("option"); o.value = value; o.textContent = text; return o; };
+        select.replaceChildren(option(FREE_ROUTER, "OpenRouter free router · picks a free model each time"));
+        (free ?? []).forEach(m => select.appendChild(option(m.id, modelLabel(m))));
+        if(![...select.options].some(o => o.value === model)){
+          select.appendChild(option(model, `${model} · not on OpenRouter's free list now`));
+          if(free) notes.push(`${model} isn't free on OpenRouter any more, so questions go to the ${id === "mainModel" ? "fallback" : "main model only"}. Pick another.`);
+        }
+        select.value = model;
+      }
+      status.classList.toggle("text-danger", notes.length > 0 && !!free);
+      status.textContent = notes.join(" ");
+    }
+
+    document.getElementById("modelForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const status = document.getElementById("modelStatus");
+      status.classList.remove("text-danger");
+      status.textContent = "Saving…";
+      const { error } = await supabaseClient.rpc("admin_set_chat_models", {
+        main_model: document.getElementById("mainModel").value,
+        fallback_model: document.getElementById("fallbackModel").value,
+      });
+      if(error){ console.error(error); status.textContent = "Not saved. Try again."; status.classList.add("text-danger"); return; }
+      status.textContent = "Saved. The next question uses these.";
+    });
+
+    function loadAll(){
+      loadPeople();
+      loadModels();
+      loadLimits();
+    }
+
+    async function loadPeople(){
+      const totalDisplay = document.getElementById("totalQuestions");
+      totalDisplay.classList.add("thinking");
+      const tbody = document.getElementById("peopleBody");
+
+      const { data, error } = await supabaseClient.rpc("admin_usage", {
+        from_date: document.getElementById("start").value || null,
+        to_date: document.getElementById("end").value || null,
+        person: document.getElementById("userFilter").value || null,
+      });
+      totalDisplay.classList.remove("thinking");
+      if(error){
+        console.error(error);
+        tbody.innerHTML = emptyRow(2, "Questions didn't load. Reload the page to try again.");
+        return;
+      }
+
+      const byPerson = {};
+      let total = 0;
+      data.forEach(r => {
+        const count = Number(r.questions) || 0;
+        total += count;
+        const key = r.email || r.user_account || "Unknown account";
+        byPerson[key] = (byPerson[key] || 0) + count;
+      });
+
+      document.getElementById("totalQuestions").textContent = total.toLocaleString();
+      document.getElementById("totalPeople").textContent = Object.keys(byPerson).length.toLocaleString();
+
+      const rows = Object.entries(byPerson).sort((a, b) => b[1] - a[1]);
+      tbody.innerHTML = rows.length
+        ? rows.map(([email, count]) => `<tr class="hover:bg-hover"><td class="${cell}">${escapeHtml(email)}</td><td class="${cell} text-right tabular-nums">${count.toLocaleString()}</td></tr>`).join("")
+        : emptyRow(2, "No questions for these filters.");
+    }
+
+    async function loadModels(){
+      const tbody = document.getElementById("modelsBody");
+      const start = document.getElementById("start").value || null;
+      const end = document.getElementById("end").value || null;
+      const { data, error } = await supabaseClient.rpc("admin_model_usage", { from_date: start, to_date: end });
+      if(error){
+        console.error(error);
+        tbody.innerHTML = emptyRow(4, "Models didn't load. Reload the page to try again.");
+        return;
+      }
+      tbody.innerHTML = data.length
+        ? data.map(m => `<tr class="hover:bg-hover">
+            <td class="${cell} font-mono text-[13px]">${escapeHtml(m.model)}</td>
+            <td class="${cell} text-right tabular-nums">${Number(m.answered).toLocaleString()}</td>
+            <td class="${cell} text-right tabular-nums">${Number(m.failed).toLocaleString()}</td>
+            <td class="${cell} text-ink-soft">${escapeHtml(formatTime(m.last_used))}</td>
+          </tr>`).join("")
+        : emptyRow(4, "No questions have been answered by the new chat in these dates yet.");
+    }
+
+    async function loadLimits(){
+      const tbody = document.getElementById("limitsBody");
+      const [{ data: current, error: defaultError }, { data: staff, error: staffError }] = await Promise.all([
+        supabaseClient.rpc("admin_default_limit"),
+        supabaseClient.rpc("admin_staff_limits"),
+      ]);
+      if(defaultError || staffError){
+        console.error(defaultError || staffError);
+        tbody.innerHTML = emptyRow(3, "Limits didn't load. Reload the page to try again.");
+        return;
+      }
+
+      defaultLimit = current ?? null;
+      document.getElementById("defaultLimit").value = defaultLimit ?? "";
+
+      tbody.innerHTML = "";
+      staff.forEach(person => tbody.appendChild(limitRow(person)));
+      if(!staff.length) tbody.innerHTML = emptyRow(3, "No staff accounts.");
+    }
+
+    function limitRow(person){
+      const tr = document.createElement("tr");
+      tr.className = "hover:bg-hover";
+
+      const account = document.createElement("td");
+      account.className = cell;
+      account.textContent = person.email;
+
+      const today = document.createElement("td");
+      today.className = `${cell} text-right tabular-nums`;
+      today.textContent = person.daily_limit === null ? String(person.used_today) : `${person.used_today} of ${person.daily_limit}`;
+      if(person.daily_limit !== null && person.used_today >= person.daily_limit) today.classList.add("text-danger");
+
+      const limitCell = document.createElement("td");
+      limitCell.className = cell;
+      const form = document.createElement("form");
+      form.className = "flex flex-wrap items-center gap-2";
+      form.noValidate = true;
+      const input = document.createElement("input");
+      input.type = "number"; input.min = "0"; input.step = "1"; input.inputMode = "numeric";
+      input.className = "h-8 w-28 rounded-md border border-line-strong bg-surface px-2 text-sm tabular-nums text-ink outline-none focus:border-accent";
+      input.setAttribute("aria-label", `Daily limit for ${person.email}`);
+      input.value = person.custom_limit ? person.daily_limit : "";
+      input.placeholder = defaultLimit === null ? "No limit" : `Default (${defaultLimit})`;
+      const save = document.createElement("button");
+      save.type = "submit";
+      save.className = "h-8 rounded-md px-2.5 text-sm text-ink-soft hover:bg-hover";
+      save.textContent = "Save";
+      const status = document.createElement("span");
+      status.className = "text-[13px] text-muted";
+      status.setAttribute("role", "status");
+      form.append(input, save, status);
+      limitCell.appendChild(form);
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const limit = readLimit(input);
+        if(!limit.ok){ status.textContent = "Enter a whole number, or leave it blank."; status.classList.add("text-danger"); return; }
+        status.classList.remove("text-danger");
+        status.textContent = "Saving…";
+        const { error } = await supabaseClient.rpc("admin_set_limit", { target: person.user_id, new_limit: limit.value });
+        if(error){ console.error(error); status.textContent = "Not saved. Try again."; status.classList.add("text-danger"); return; }
+        await loadLimits();
+      });
+
+      tr.append(account, today, limitCell);
+      return tr;
+    }
+
+    document.getElementById("defaultForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const status = document.getElementById("defaultStatus");
+      const limit = readLimit(document.getElementById("defaultLimit"));
+      if(!limit.ok){ status.textContent = "Enter a whole number, or leave it blank."; status.classList.add("text-danger"); return; }
+      status.classList.remove("text-danger");
+      status.textContent = "Saving…";
+      const { error } = await supabaseClient.rpc("admin_set_default_limit", { new_limit: limit.value });
+      if(error){ console.error(error); status.textContent = "Not saved. Try again."; status.classList.add("text-danger"); return; }
+      status.textContent = "Saved";
+      await loadLimits();
+    });
+
+    function resetFilters(){
+      document.querySelectorAll("#filters input").forEach(i => i.value = "");
+      document.getElementById("userFilter").value = "";
+      loadPeople();
+      loadModels();
+    }
+
+    // Wired here because module functions aren't visible to inline onclick handlers.
+    document.getElementById("filters").addEventListener("submit", (e) => { e.preventDefault(); loadPeople(); loadModels(); });
+    document.getElementById("resetFilters").addEventListener("click", resetFilters);
+
+    await requireSignIn(supabaseClient);
+    mountSidebar(supabaseClient, "usage");
+    checkAuth();
+  </script>
+</body>
+</html>

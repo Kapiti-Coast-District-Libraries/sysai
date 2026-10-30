@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sign in · LibSys</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="theme.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.95.3"></script>
+</head>
+<body class="min-h-[100dvh]">
+  <main class="mx-auto flex min-h-[100dvh] w-full max-w-[320px] flex-col justify-center px-4 py-12">
+    <span class="flex h-8 w-8 items-center justify-center rounded-md bg-ink text-sm font-semibold text-white" aria-hidden="true">L</span>
+    <h1 class="mt-5 text-[26px] font-bold leading-tight tracking-[-0.01em]">Sign in to LibSys</h1>
+    <p class="mt-1 text-muted">Use your council email address.</p>
+
+    <form id="login-form" class="mt-7 space-y-3" novalidate>
+      <div>
+        <label for="email" class="mb-1 block text-[13px] text-muted">Email</label>
+        <input
+          type="email"
+          id="email"
+          autocomplete="username"
+          placeholder="name@{{emailDomain}}"
+          class="w-full rounded-md border border-line-strong bg-[rgba(242,241,238,0.6)] px-2.5 py-1.5 text-ink outline-none placeholder:text-faint focus:border-accent focus:bg-surface"
+        />
+      </div>
+      <div>
+        <label for="password" class="mb-1 block text-[13px] text-muted">Password</label>
+        <input
+          type="password"
+          id="password"
+          autocomplete="current-password"
+          class="w-full rounded-md border border-line-strong bg-[rgba(242,241,238,0.6)] px-2.5 py-1.5 text-ink outline-none focus:border-accent focus:bg-surface"
+        />
+      </div>
+
+      <p id="error" role="alert" class="hidden rounded bg-danger-tint px-3 py-2 text-sm"></p>
+
+      <button
+        type="submit"
+        id="login-btn"
+        class="w-full rounded-md bg-accent px-3 py-2 font-medium text-white hover:bg-accent-hover disabled:opacity-60"
+      >
+        Sign in
+      </button>
+    </form>
+
+    <button type="button" id="forgot-btn" class="mt-3 self-start text-sm text-muted underline decoration-[rgba(55,53,47,0.4)] underline-offset-2 hover:text-ink">
+      Forgot your password?
+    </button>
+    <p id="reset-status" role="status" class="mt-3 hidden rounded bg-accent-tint px-3 py-2 text-sm"></p>
+
+    <p class="mt-10 text-xs text-muted">{{council}}</p>
+  </main>
+
+  <script>
+    // Invite and password-reset links belong on the set-password page. Send
+    // them there before the client below turns the link into a session.
+    if (/(^|&)(type=(invite|recovery)|error_code=)/.test(location.hash.slice(1))) {
+      location.replace("set-password.html" + location.hash);
+    }
+
+    const supabaseUrl = "{{supabaseUrl}}";
+    const supabaseKey = "{{supabaseKey}}";
+    const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+    const form = document.getElementById("login-form");
+    const errorBox = document.getElementById("error");
+    const loginBtn = document.getElementById("login-btn");
+
+    function showError(message) {
+      errorBox.textContent = message;
+      errorBox.classList.toggle("hidden", !message);
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+
+      if (!email || !password) {
+        showError("Enter your email and password.");
+        return;
+      }
+
+      showError("");
+      loginBtn.disabled = true;
+      loginBtn.textContent = "Signing in…";
+
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        showError(error.message === "Invalid login credentials"
+          ? "That email and password don't match. Check them and try again."
+          : error.message);
+        loginBtn.disabled = false;
+        loginBtn.textContent = "Sign in";
+      } else {
+        window.location.href = "index.html";
+      }
+    });
+
+    // Sends a reset link to the email typed above. The message is the same
+    // whether or not the account exists, so it doesn't reveal who has one.
+    const forgotBtn = document.getElementById("forgot-btn");
+    const resetStatus = document.getElementById("reset-status");
+    forgotBtn.addEventListener("click", async () => {
+      const email = document.getElementById("email").value.trim();
+      resetStatus.classList.add("hidden");
+      if (!email) {
+        showError("Enter your email above, then select Forgot your password? again.");
+        document.getElementById("email").focus();
+        return;
+      }
+      showError("");
+      forgotBtn.disabled = true;
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: new URL("set-password.html", location.href).href,
+      });
+      forgotBtn.disabled = false;
+      if (error && /rate|too many/i.test(error.message)) {
+        showError("Too many reset emails have been sent. Wait an hour and try again.");
+        return;
+      }
+      resetStatus.textContent = `If ${email} has a LibSys account, a reset link is on its way. Check your inbox.`;
+      resetStatus.classList.remove("hidden");
+    });
+
+    // Already signed in: go straight to the chat.
+    supabaseClient.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        window.location.href = "index.html";
+      }
+    });
+  </script>
+</body>
+</html>

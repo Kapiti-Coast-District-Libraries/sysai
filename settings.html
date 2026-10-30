@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>LibSys · Settings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="theme.css">
+  <style>
+    .field { height: 2.25rem; width: 100%; border-radius: 0.375rem; border: 1px solid var(--line-strong, rgba(55,53,47,0.16)); background: var(--surface, #fff); padding: 0 0.625rem; font-size: 14px; outline: none; }
+    .field:focus { border-color: var(--accent, #2383e2); }
+    textarea.field { height: auto; padding: 0.375rem 0.625rem; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="flex h-[100dvh]">
+    <aside id="sidebar" class="hidden w-60 shrink-0 bg-sidebar lg:block"></aside>
+
+    <main class="min-w-0 flex-1 overflow-y-auto">
+      <div class="flex items-center gap-2 px-3 py-2.5 text-[14px] text-ink-soft">
+        <button type="button" data-open-menu aria-label="Open menu" class="rounded-md p-1 text-faint hover:bg-hover hover:text-ink lg:hidden">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <span class="px-1">Settings</span>
+      </div>
+
+      <div class="mx-auto w-full max-w-[760px] px-5 pb-16 pt-8 sm:px-12 sm:pt-12">
+        <h1 class="text-[32px] font-bold leading-tight tracking-[-0.01em]">Settings</h1>
+        <p class="mt-1 text-muted">Your library's details, which LibSys uses in its answers. Changes here are only for you. Everyone else keeps the usual settings.</p>
+
+        <p id="loadMessage" class="mt-8 text-muted">Loading your settings…</p>
+
+        <form id="settings" class="hidden" novalidate>
+          <section class="mt-10" aria-labelledby="library-heading">
+            <h2 id="library-heading" class="border-b border-line pb-2 text-lg font-semibold">Library</h2>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              <label class="flex flex-col gap-1 text-[13px] text-muted sm:col-span-2">
+                Full name
+                <input id="name" class="field text-ink" autocomplete="off">
+              </label>
+              <label class="flex flex-col gap-1 text-[13px] text-muted">
+                Short name
+                <input id="shortName" class="field text-ink" autocomplete="off">
+                <span>What staff call it, like "Kāpiti's borrowers".</span>
+              </label>
+              <div class="hidden sm:block"></div>
+              <label class="flex flex-col gap-1 text-[13px] text-muted">
+                Spydus version at the desks
+                <input id="spydusVersion" class="field text-ink" autocomplete="off">
+              </label>
+              <label class="flex flex-col gap-1 text-[13px] text-muted">
+                Spydus version most guides are for
+                <input id="helpVersion" class="field text-ink" autocomplete="off">
+              </label>
+            </div>
+          </section>
+
+          <section class="mt-10" aria-labelledby="branches-heading">
+            <h2 id="branches-heading" class="border-b border-line pb-2 text-lg font-semibold">Branches</h2>
+            <p class="mt-2 text-[13px] text-muted">In the order staff pick them for ink requests. The code is the branch's location code in Spydus, and the first two are used as examples in Boolean queries.</p>
+            <div id="branches" class="mt-3 space-y-2"></div>
+            <button type="button" data-add="branches" class="mt-2 h-8 rounded-md px-2 text-sm text-ink-soft hover:bg-hover">+ Add branch</button>
+          </section>
+
+          <section class="mt-10" aria-labelledby="spydus-heading">
+            <h2 id="spydus-heading" class="border-b border-line pb-2 text-lg font-semibold">Spydus database</h2>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              <label class="flex flex-col gap-1 text-[13px] text-muted">
+                Institution code
+                <input id="institutionCode" class="field text-ink" autocomplete="off">
+                <span>Your library's code in the Institutions table, for Boolean queries about your borrowers.</span>
+              </label>
+              <label class="flex flex-col gap-1 text-[13px] text-muted">
+                Institution name in Spydus
+                <input id="institutionName" class="field text-ink" autocomplete="off">
+              </label>
+              <label class="flex flex-col gap-1 text-[13px] text-muted sm:col-span-2">
+                Other libraries on the same database
+                <input id="sharedWith" class="field text-ink" autocomplete="off">
+                <span>Separate them with commas. Leave it empty if no other library shares it.</span>
+              </label>
+            </div>
+          </section>
+
+          <section class="mt-10" aria-labelledby="systems-heading">
+            <h2 id="systems-heading" class="border-b border-line pb-2 text-lg font-semibold">Other systems</h2>
+            <p class="mt-2 text-[13px] text-muted">What the library uses besides Spydus, one line each, as LibSys is told it. **Bold** works.</p>
+            <textarea id="systems" rows="6" class="field mt-3 text-ink"></textarea>
+          </section>
+
+          <section class="mt-10" aria-labelledby="contacts-heading">
+            <h2 id="contacts-heading" class="border-b border-line pb-2 text-lg font-semibold">Who to contact</h2>
+            <p class="mt-2 text-[13px] text-muted">Who LibSys sends staff to for each kind of problem. Use the names from Urgent contacts, which has their numbers.</p>
+            <label class="mt-3 flex flex-col gap-1 text-[13px] text-muted">
+              What LibSys says first
+              <textarea id="contactsIntro" rows="2" class="field text-ink"></textarea>
+            </label>
+            <div id="contacts" class="mt-3 space-y-2"></div>
+            <button type="button" data-add="contacts" class="mt-2 h-8 rounded-md px-2 text-sm text-ink-soft hover:bg-hover">+ Add contact</button>
+          </section>
+
+          <section class="mt-10" aria-labelledby="ink-heading">
+            <h2 id="ink-heading" class="border-b border-line pb-2 text-lg font-semibold">Ink requests</h2>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              <label class="flex flex-col gap-1 text-[13px] text-muted">
+                Toner colours
+                <input id="tonerColours" class="field text-ink" autocomplete="off">
+                <span>Separate them with commas.</span>
+              </label>
+              <label class="flex flex-col gap-1 text-[13px] text-muted">
+                Cartridge
+                <input id="cartridge" class="field text-ink" autocomplete="off">
+                <span>The email reads "Waikanae library requests a Cyan <i>cartridge</i>."</span>
+              </label>
+            </div>
+          </section>
+
+          <div class="sticky bottom-0 mt-10 flex flex-wrap items-center gap-2 border-t border-line bg-surface py-3">
+            <button type="submit" class="h-9 rounded-md bg-accent px-3 text-sm font-medium text-white hover:bg-accent-hover">Save</button>
+            <button type="button" id="useDefaults" class="h-9 rounded-md px-3 text-sm text-ink-soft hover:bg-hover">Go back to the usual settings</button>
+            <span id="status" role="status" class="text-sm text-muted"></span>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <!-- A data block rather than a script literal, so Vite's dependency scan can read the page's script. -->
+  <script type="application/json" id="defaultSettings">{{defaultSettings}}</script>
+  <script type="module">
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.95.3'
+  // Loaded by URL so the Vite dev server doesn't try to bundle it (it lives in public/).
+  const { requireSignIn, mountSidebar } = await import(/* @vite-ignore */ new URL("sidebar.js", document.baseURI).href);
+
+  const supabaseClient = createClient(
+    '{{supabaseUrl}}',
+    '{{supabaseKey}}'
+  )
+
+    // The usual settings, from supabase/functions/_shared/library.ts (vite.config.ts fills them in).
+    const DEFAULTS = JSON.parse(document.getElementById("defaultSettings").textContent);
+
+    // The chat reads the same row (services/settings.ts) and ignores anything the wrong shape.
+    const sameShape = (value, fallback) =>
+      Array.isArray(fallback) ? Array.isArray(value) : typeof value === typeof fallback && value !== null;
+
+    const $ = (id) => document.getElementById(id);
+    const status = $("status");
+    const splitList = (text) => text.split(",").map((s) => s.trim()).filter(Boolean);
+    const lines = (text) => text.split("\n").map((s) => s.trim()).filter(Boolean);
+
+    const ROWS = {
+      branches: { fields: [["name", "Branch"], ["code", "Location code"]], wide: 0 },
+      contacts: { fields: [["name", "Contact"], ["covers", "What they handle"]], wide: 1 },
+    };
+
+    function addRow(list, item = {}) {
+      const { fields, wide } = ROWS[list];
+      const row = document.createElement("div");
+      row.className = "flex items-start gap-2";
+      fields.forEach(([key, label], i) => {
+        const input = document.createElement("input");
+        input.className = `field text-ink ${i === wide ? "flex-[2]" : "flex-1"}`;
+        input.dataset.key = key;
+        input.placeholder = label;
+        input.setAttribute("aria-label", label);
+        input.autocomplete = "off";
+        input.value = item[key] ?? "";
+        row.appendChild(input);
+      });
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "h-9 shrink-0 rounded-md px-2 text-sm text-ink-soft hover:bg-hover";
+      remove.textContent = "Remove";
+      remove.addEventListener("click", () => row.remove());
+      row.appendChild(remove);
+      $(list).appendChild(row);
+    }
+
+    function readRows(list) {
+      return [...$(list).children]
+        .map((row) => Object.fromEntries([...row.querySelectorAll("input")].map((i) => [i.dataset.key, i.value.trim()])))
+        .filter((item) => Object.values(item).some(Boolean));
+    }
+
+    function show(s) {
+      $("name").value = s.name;
+      $("shortName").value = s.shortName;
+      $("spydusVersion").value = s.spydus.version;
+      $("helpVersion").value = s.spydus.helpVersion;
+      $("institutionCode").value = s.institution.code;
+      $("institutionName").value = s.institution.name;
+      $("sharedWith").value = s.sharedWith.join(", ");
+      $("systems").value = s.systems.join("\n");
+      $("contactsIntro").value = s.contacts.intro;
+      $("tonerColours").value = s.printer.tonerColours.join(", ");
+      $("cartridge").value = s.printer.cartridge;
+      for (const list of Object.keys(ROWS)) {
+        $(list).replaceChildren();
+        (list === "branches" ? s.branches : s.contacts.list).forEach((item) => addRow(list, item));
+      }
+    }
+
+    // Returns the settings, or a message saying what to fix.
+    function read() {
+      const s = {
+        name: $("name").value.trim(),
+        shortName: $("shortName").value.trim(),
+        spydus: { version: $("spydusVersion").value.trim(), helpVersion: $("helpVersion").value.trim() },
+        institution: { code: $("institutionCode").value.trim(), name: $("institutionName").value.trim() },
+        sharedWith: splitList($("sharedWith").value),
+        branches: readRows("branches"),
+        systems: lines($("systems").value),
+        contacts: { intro: $("contactsIntro").value.trim(), list: readRows("contacts") },
+        printer: { tonerColours: splitList($("tonerColours").value), cartridge: $("cartridge").value.trim() },
+      };
+      const missing = [
+        [!s.name, "the full name"],
+        [!s.shortName, "the short name"],
+        [!s.spydus.version || !s.spydus.helpVersion, "both Spydus versions"],
+        [!s.institution.code || !s.institution.name, "the institution code and name"],
+        [s.branches.length === 0 || s.branches.some((b) => !b.name || !b.code), "a name and code for each branch"],
+        [!s.contacts.intro, "what LibSys says first about contacts"],
+        [s.contacts.list.length === 0 || s.contacts.list.some((c) => !c.name || !c.covers), "a name and what they handle for each contact"],
+        [s.printer.tonerColours.length === 0, "at least one toner colour"],
+        [!s.printer.cartridge, "the cartridge"],
+      ].filter(([isMissing]) => isMissing).map(([, what]) => what);
+      return missing.length ? { problem: `Fill in ${missing.join(", ")}.` } : { settings: s };
+    }
+
+    function setStatus(text, isError = false) {
+      status.textContent = text;
+      status.classList.toggle("text-danger", isError);
+    }
+
+    let userId = null;
+
+    async function load() {
+      const { data, error } = await supabaseClient.from("user_settings").select("library").maybeSingle();
+      if (error) {
+        console.error(error);
+        $("loadMessage").textContent = "Your settings didn't load. Refresh the page to try again.";
+        return;
+      }
+      const saved = data?.library ?? {};
+      const merged = Object.fromEntries(
+        Object.entries(DEFAULTS).map(([key, value]) => [key, sameShape(saved[key], value) ? saved[key] : value]),
+      );
+      show(merged);
+      $("loadMessage").remove();
+      $("settings").classList.remove("hidden");
+    }
+
+    $("settings").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const { settings, problem } = read();
+      if (problem) return setStatus(problem, true);
+      // Only what differs from the usual settings is saved, so a later change to
+      // those still reaches anyone who didn't change that part.
+      const changed = Object.fromEntries(
+        Object.entries(settings).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(DEFAULTS[key])),
+      );
+      setStatus("Saving…");
+      const { error } = Object.keys(changed).length
+        ? await supabaseClient.from("user_settings").upsert({ user_id: userId, library: changed, updated_at: new Date().toISOString() })
+        : await supabaseClient.from("user_settings").delete().eq("user_id", userId);
+      if (error) {
+        console.error(error);
+        return setStatus("Not saved. Try again.", true);
+      }
+      setStatus("Saved. Your next question in Support chat uses these.");
+    });
+
+    $("useDefaults").addEventListener("click", async () => {
+      setStatus("Saving…");
+      const { error } = await supabaseClient.from("user_settings").delete().eq("user_id", userId);
+      if (error) {
+        console.error(error);
+        return setStatus("Not saved. Try again.", true);
+      }
+      show(DEFAULTS);
+      setStatus("Back to the usual settings.");
+    });
+
+    document.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => addRow(b.dataset.add)));
+
+    const session = await requireSignIn(supabaseClient);
+    userId = session.user.id;
+    mountSidebar(supabaseClient, "settings");
+    load();
+  </script>
+</body>
+</html>

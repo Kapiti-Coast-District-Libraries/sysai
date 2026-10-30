@@ -1,0 +1,42 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LibSys · Support chat</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="/theme.js"></script>
+    <link rel="stylesheet" href="/theme.css">
+<script>
+  // Find the Supabase auth session in localStorage. Only a session for the LibSys
+  // project counts, not one left over from the old shared project.
+  const supabaseSessionKey = Object.keys(localStorage).find(key =>
+    key === "sb-{{supabaseProject}}-auth-token"
+  );
+
+  // Invite and password-reset links land here by default (the Site URL), so
+  // pass them, with their sign-in details, to the set-password page.
+  if (/(^|&)(type=(invite|recovery)|error_code=)/.test(location.hash.slice(1))) {
+    location.replace("set-password.html" + location.hash);
+  } else if (!supabaseSessionKey) {
+    window.location.href = "login.html";
+  } else {
+    try {
+      const session = JSON.parse(localStorage.getItem(supabaseSessionKey));
+
+      // If session or access token is missing, treat as logged out
+      if (!session || !session.access_token) {
+        window.location.href = "login.html";
+      }
+    } catch (e) {
+      window.location.href = "login.html";
+    }
+  }
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
