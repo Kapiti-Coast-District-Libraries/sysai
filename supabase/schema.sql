@@ -131,7 +131,8 @@ alter table public.model_usage enable row level security;
 revoke all on table public.model_usage from anon, authenticated;
 grant insert on table public.model_usage to authenticated;
 create policy "Staff log their own questions" on public.model_usage
-  for insert to authenticated with check (user_id = auth.uid());
+  for insert to authenticated with check (user_id = (select auth.uid()));
+create index model_usage_user_id_idx on public.model_usage (user_id);
 
 -- Daily question limits (migration usage_limits). A person's own limit wins;
 -- otherwise the default applies; with no default there's no limit. Days are

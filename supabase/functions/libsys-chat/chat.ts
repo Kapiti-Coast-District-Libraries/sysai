@@ -1,7 +1,7 @@
 // LibSys Support AI chat backend (runs as the libsys-chat edge function; index.ts wires it up).
-// Checks the staff member's Supabase sign-in, sends the chat to OpenRouter's
-// free model router, turns tool calls into emails for staff to copy, and logs which model
-// answered to the Supabase `model_usage` table.
+// Checks the staff member's Supabase sign-in, sends the chat to the free models
+// set on the Usage page through OpenRouter, turns tool calls into emails for staff
+// to copy, and logs which model answered to the Supabase `model_usage` table.
 
 import { library } from "../_shared/library.ts";
 
@@ -12,6 +12,8 @@ export interface Env {
   ALLOWED_ORIGINS: string;
   OPENROUTER_MODEL?: string;
   SUPPORT_EMAIL?: string;
+  // For tests: how long before the fallback is asked too.
+  HEDGE_AFTER_MS?: number;
 }
 
 export interface WorkerContext {
@@ -40,6 +42,10 @@ const CLASSIFIER_REPLY = /^\s*(user|response) safety:/i;
 const REASONING_END = "</think>";
 const REASONING_START = /^\s*<think>/i;
 
+// The heading of the Boolean query instructions in the site's constants.ts.
+const BOOLEAN_INSTRUCTIONS = "### BOOLEAN QUERY PROTOCOL";
+const QUERY_LABEL = /^[*_]*boolean( query)?:?[*_]*:?\s*/i;
+
 type UsageLog = {
   model?: string | null;
   tool?: string | null;
@@ -58,12 +64,18 @@ const FREE_MODEL = /^(openrouter\/free|[A-Za-z0-9._-]+\/[A-Za-z0-9._:-]+:free)$/
 // A question plus its guide excerpts and chat history is well under this.
 const MAX_REQUEST_BYTES = 1_000_000;
 
-const MAX_ATTEMPTS = 2;
-
 // Supabase recycles the function's worker 150 seconds after it starts, even
 // mid-request, and a worker serves several chats. A model that stalls is
-// dropped so the second try, usually on another model, finishes in time.
-const ATTEMPT_TIMEOUT_MS = 45_000;
+// dropped after this, so the answer can come from another.
+const ATTEMPT_TIMEOUT_MS = 40_000;
+
+// The last try only starts if the first round failed quickly (an overloaded
+// model fails in a second or two), so it ends well inside the 150 seconds.
+const LAST_TRY_STARTS_BY_MS = 50_000;
+
+// How long the main model gets before the fallback is asked as well. Most
+// answers take 1 to 4 seconds.
+const HEDGE_AFTER_MS = 8_000;
 
 // Tool definitions live here rather than coming from the browser, so the only
 // actions the model can trigger are these two emails.
@@ -149,50 +161,29 @@ export default {
       { role: "user", content: message },
     ];
 
-    // The first try uses the main model set on the Usage page. If it fails or
-    // sends back nothing, the second uses the fallback (often the free router,
-    // which picks a model per request).
+    // The main model set on the Usage page is asked first. The fallback (often
+    // the free router, which picks a model per request) is asked too only if
+    // the main fails or is slow, and the first good answer wins. If both fail
+    // quickly and there's time, the fallback gets one more try.
     const tools = toolsFor(message, history);
-    let content = "";
-    let toolCall: ToolCall | undefined;
-    let failedStatus: number | null = null;
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const model = attempt === 1 ? models.main : models.fallback;
-      const result = await askOpenRouter(messages, tools, env, model);
-      if ("error" in result) {
-        // Logged with the model asked, so the Usage page shows which one is failing.
-        ctx.waitUntil(logUsage(token, env, { model, error: result.error }));
-        failedStatus = result.status;
-        // The account's own limits and credit problems won't clear up on a retry.
-        if (result.final) break;
-        continue;
-      }
-      const { data } = result;
-      const choice = data.choices?.[0];
-      content = withoutReasoning(choice?.message?.content ?? "");
-      if (CLASSIFIER_MODEL.test(data.model ?? "") || CLASSIFIER_REPLY.test(content)) content = "";
-      toolCall = choice?.message?.tool_calls?.[0];
-      // Weaker models sometimes reach for an action nobody asked for.
-      if (toolCall && !tools.some((t) => t.function.name === toolCall?.function?.name)) {
-        console.error("Ignored a tool call that wasn't offered", toolCall.function?.name);
-        toolCall = undefined;
-      }
-      ctx.waitUntil(
-        logUsage(token, env, {
-          model: data.model ?? null,
-          tool: toolCall?.function?.name ?? null,
-          prompt_tokens: data.usage?.prompt_tokens ?? null,
-          completion_tokens: data.usage?.completion_tokens ?? null,
-          error: !choice ? "no_choice" : content || toolCall ? null : "empty",
-        }),
-      );
-      failedStatus = null;
-      if (content || toolCall) break;
+    const hedgeMs = env.HEDGE_AFTER_MS ?? HEDGE_AFTER_MS;
+    const record = (entry: UsageLog) => ctx.waitUntil(logUsage(token, env, entry));
+    const ask = (model: string) => (signal?: AbortSignal) => askModel(messages, tools, env, model, signal);
+    const started = Date.now();
+    const firstRound = models.main === models.fallback ? [ask(models.main)] : [ask(models.main), ask(models.fallback)];
+    let outcome = await firstAnswer(firstRound, record, hedgeMs);
+    // The account's own limits and credit problems won't clear up on a retry.
+    if (!outcome.answered && !outcome.final && Date.now() - started <= LAST_TRY_STARTS_BY_MS) {
+      outcome = await firstAnswer([ask(models.fallback)], record, hedgeMs);
     }
 
-    if (failedStatus !== null) {
-      return json({ error: upstreamErrorMessage(failedStatus) }, failedStatus === 429 ? 429 : 502, cors);
+    if (!outcome.answered) {
+      if (outcome.status === null) {
+        return json({ error: "The AI didn't send back an answer. Please try again." }, 502, cors);
+      }
+      return json({ error: upstreamErrorMessage(outcome.status) }, outcome.status === 429 ? 429 : 502, cors);
     }
+    const { content, toolCall } = outcome;
     const toolName = toolCall?.function?.name ?? null;
 
     if (toolName === "send_ink_request") {
@@ -219,10 +210,7 @@ export default {
       return json({ text: `Here's this chat. ${email}` }, 200, cors);
     }
 
-    if (!content) {
-      return json({ error: "The AI didn't send back an answer. Please try again." }, 502, cors);
-    }
-    return json({ text: content }, 200, cors);
+    return json({ text: instructions.includes(BOOLEAN_INSTRUCTIONS) ? fenceQuery(content) : content }, 200, cors);
   },
 };
 
@@ -381,12 +369,138 @@ function codeBlock(label: string, text: string): string {
   return `${fence}${label}\n${text}\n${fence}`;
 }
 
+const withoutLabel = (line: string) => line.trim().replace(QUERY_LABEL, "").replace(/^`|`$/g, "");
+
+// A whole query starts with a variable and has no lower case outside its quoted
+// dates, so "ITMLOCX: WAI finds items at Waikanae" isn't one.
+function isQuery(line: string): boolean {
+  return /^\(*[A-Z][A-Z0-9]+[:<>]/.test(line) && !/[a-z]/.test(line.replace(/"[^"]*"/g, ""));
+}
+
+// Code blocks get a Copy button, but models sometimes leave the fence off a
+// Boolean query, often with just the word "boolean" left above it.
+function fenceQuery(reply: string): string {
+  // With "boolean" on the line below the fence, it would be copied with the query.
+  const text = reply.replace(/^```[ \t]*\n[ \t]*boolean[ \t]*\n/gim, "```boolean\n");
+  if (text.includes("```")) return text;
+  const lines = text.split("\n");
+  const at = lines.findIndex((line) => isQuery(withoutLabel(line)));
+  if (at === -1) return text;
+  const start = at > 0 && /^boolean$/i.test(lines[at - 1].trim()) ? at - 1 : at;
+  lines.splice(start, at - start + 1, "```boolean", withoutLabel(lines[at]), "```");
+  return lines.join("\n");
+}
+
+type Outcome =
+  | { answered: true; content: string; toolCall?: ToolCall }
+  // status is null when the model replied with nothing usable.
+  | { answered: false; status: number | null; final?: boolean };
+
+// cancelled: another model answered first, so this request was dropped.
+type Asked = { outcome: Outcome; log?: UsageLog; cancelled?: boolean };
+
+// Asks one model and says what to log, without logging it yet.
+async function askModel(
+  messages: ChatMessage[],
+  tools: Tool[],
+  env: Env,
+  model: string,
+  signal?: AbortSignal,
+): Promise<Asked> {
+  const result = await askOpenRouter(messages, tools, env, model, signal);
+  if (signal?.aborted) return { outcome: { answered: false, status: null }, cancelled: true };
+  if ("error" in result) {
+    // Logged with the model asked, so the Usage page shows which one is failing.
+    return { outcome: { answered: false, status: result.status, final: result.final }, log: { model, error: result.error } };
+  }
+  const { data } = result;
+  const choice = data.choices?.[0];
+  // OpenRouter passes on some provider errors ("Service temporarily
+  // overloaded") as a 200 with no reply in it.
+  if (!choice) console.error("OpenRouter sent no reply", model, JSON.stringify(data).slice(0, 1000));
+  const upstreamError = data.error?.metadata?.error_type ?? (data.error?.code ? `upstream_${data.error.code}` : null);
+  let content = withoutReasoning(choice?.message?.content ?? "");
+  if (CLASSIFIER_MODEL.test(data.model ?? "") || CLASSIFIER_REPLY.test(content)) content = "";
+  let toolCall: ToolCall | undefined = choice?.message?.tool_calls?.[0];
+  // Weaker models sometimes reach for an action nobody asked for.
+  if (toolCall && !tools.some((t) => t.function.name === toolCall?.function?.name)) {
+    console.error("Ignored a tool call that wasn't offered", toolCall.function?.name);
+    toolCall = undefined;
+  }
+  const answered = Boolean(content || toolCall);
+  return {
+    outcome: answered ? { answered: true, content, toolCall } : { answered: false, status: null },
+    log: {
+      model: data.model ?? model,
+      tool: toolCall?.function?.name ?? null,
+      prompt_tokens: data.usage?.prompt_tokens ?? null,
+      completion_tokens: data.usage?.completion_tokens ?? null,
+      error: !choice ? upstreamError ?? "no_choice" : answered ? null : "empty",
+    },
+  };
+}
+
+// Asks the models in turn: the next one starts as soon as the one before it
+// fails, or once it has gone hedgeMs without answering. The first answer wins
+// and the rest are cancelled, so they aren't logged or counted. With no
+// answer, it settles with the most telling failure. A quick answer from the
+// first model costs one request.
+function firstAnswer(
+  asks: ((signal: AbortSignal) => Promise<Asked>)[],
+  record: (entry: UsageLog) => void,
+  hedgeMs: number,
+): Promise<Outcome> {
+  const controller = new AbortController();
+  const failures: Outcome[] = [];
+  let started = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return new Promise((resolve) => {
+    const settle = (outcome: Outcome) => {
+      clearTimeout(timer);
+      controller.abort();
+      resolve(outcome);
+    };
+    const startNext = () => {
+      clearTimeout(timer);
+      if (started >= asks.length || controller.signal.aborted) return;
+      const ask = asks[started++];
+      if (started < asks.length) timer = setTimeout(startNext, hedgeMs);
+      ask(controller.signal)
+        .catch((): Asked => ({ outcome: { answered: false, status: 502 } }))
+        .then(({ outcome, log, cancelled }) => {
+          if (cancelled || controller.signal.aborted) return;
+          if (log) record(log);
+          if (outcome.answered) return settle(outcome);
+          failures.push(outcome);
+          if (failures.length === asks.length) {
+            return settle(
+              failures.find((f) => !f.answered && f.final) ??
+                failures.find((f) => !f.answered && f.status === 504) ??
+                failures.find((f) => !f.answered && f.status !== null) ??
+                failures[0],
+            );
+          }
+          // Everything asked so far has failed, so don't wait for the timer.
+          if (failures.length === started) startNext();
+        });
+    };
+    startNext();
+  });
+}
+
 type OpenRouterResult = { data: any } | { error: string; status: number; final?: boolean };
 
-async function askOpenRouter(messages: ChatMessage[], tools: Tool[], env: Env, model: string): Promise<OpenRouterResult> {
-  let res: Response;
-  try {
-    res = await fetch(OPENROUTER_URL, {
+async function askOpenRouter(
+  messages: ChatMessage[],
+  tools: Tool[],
+  env: Env,
+  model: string,
+  cancel?: AbortSignal,
+): Promise<OpenRouterResult> {
+  const timeout = AbortSignal.timeout(ATTEMPT_TIMEOUT_MS);
+  const signal = cancel ? AbortSignal.any([timeout, cancel]) : timeout;
+  const send = (effort: "none" | "low") =>
+    fetch(OPENROUTER_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
@@ -397,12 +511,17 @@ async function askOpenRouter(messages: ChatMessage[], tools: Tool[], env: Env, m
         model,
         messages,
         ...(tools.length > 0 ? { tools } : {}),
-        // Support answers don't need long thinking, and free "thinking"
-        // models can otherwise take a minute or more to reply.
-        reasoning: { effort: "low", exclude: true },
+        reasoning: { effort, exclude: true },
       }),
-      signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
+      signal,
     });
+  let res: Response;
+  try {
+    // Thinking is skipped: even hidden, it made free models take 30 seconds or
+    // more, and often time out.
+    res = await send("none");
+    // Some models can't skip it ("Reasoning is mandatory"); they get a short think.
+    if (res.status === 400 && /reasoning is mandatory/i.test(await res.clone().text())) res = await send("low");
   } catch (err) {
     return isTimeout(err) ? { error: "timeout", status: 504 } : { error: "network", status: 0 };
   }

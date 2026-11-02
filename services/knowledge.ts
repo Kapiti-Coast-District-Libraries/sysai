@@ -540,16 +540,24 @@ const NOT_A_SPYDUS_QUERY =
 // QR, sign-in or wifi codes.
 const CODE_WORD = /\b(location|status|collection|category|branch|item type|material|lookup|lkp)\s+codes?\b|\bcodes? (for|of)\b/i;
 const NOT_A_LOOKUP_CODE = /\berror codes?\b|\bcode (error|message)\b|\bqr code\b|\b(\d[\s-]*digit|verification|security|login|access|authenticat\w*) codes?\b|\b(wi-?fi|password|door|alarm|pin|printer|photocopier|locker)\b/i;
+// A list of records with a condition, asked for without the word "query":
+// "Loans overdue by 14 days", "Missing items at Waikanae". "Items are missing"
+// and "Overdue loans report" aren't.
+const RECORD_LIST =
+  /^((list|find|show( me)?|all)\s+)?((all|the)\s+)?((overdue|missing|lost|damaged|expired|inactive)\s+(loans|items|borrowers|reservations)\s+(at|in|from|by|for|over|more)\b|(loans|items|borrowers|reservations)\s+(overdue|missing|lost|damaged|expir\w+|inactive)\b)/i;
+const NOT_A_RECORD_LIST = /\?|\b(reports?|notices?|letters?|fines?|charges?|not|won'?t|can'?t|isn'?t|aren'?t|doesn'?t)\b/i;
 
 function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
 function isBooleanRequest(text: string): boolean {
+  const trimmed = text.trim();
   return (
     BOOLEAN_WORDS.test(text) ||
     (QUERY_WORD.test(text) && !NOT_A_SPYDUS_QUERY.test(text)) ||
-    (CODE_WORD.test(text) && !NOT_A_LOOKUP_CODE.test(text))
+    (CODE_WORD.test(text) && !NOT_A_LOOKUP_CODE.test(text)) ||
+    (RECORD_LIST.test(trimmed) && !NOT_A_RECORD_LIST.test(trimmed) && wordCount(trimmed) <= 8)
   );
 }
 

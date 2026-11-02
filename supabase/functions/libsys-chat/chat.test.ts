@@ -9,6 +9,8 @@ const env = {
   ALLOWED_ORIGINS: "https://kapiti-coast-district-libraries.github.io,http://localhost:3000",
   OPENROUTER_MODEL: "openrouter/free",
   SUPPORT_EMAIL: "max@example.com",
+  // The fallback is asked after 20ms instead of 8 seconds, so the tests stay quick.
+  HEDGE_AFTER_MS: 20,
 };
 
 const ORIGIN = "https://kapiti-coast-district-libraries.github.io";
@@ -135,7 +137,7 @@ test("sends the chat to the free router and returns the answer", async () => {
   ]);
   // Neither action is offered for a question about loans.
   assert.equal(sent.tools, undefined);
-  assert.deepEqual(sent.reasoning, { effort: "low", exclude: true });
+  assert.deepEqual(sent.reasoning, { effort: "none", exclude: true });
   assert.equal((openRouterCall()!.init.headers as Record<string, string>).Authorization, "Bearer test-openrouter-key");
 
   const logged = JSON.parse(logCall()!.init.body as string);
@@ -329,6 +331,32 @@ test("gives up on a model that stalls and asks again", async () => {
   assert.ok(openRouterCall()!.init.signal instanceof AbortSignal);
 });
 
+test("tries a third time when the first two fail quickly", async () => {
+  savedModels = () => Response.json({ main: "nvidia/nemotron-3-ultra-550b-a55b:free", fallback: "openrouter/free" });
+  const overloaded = { id: "gen-1", error: { message: "Upstream error from Nvidia: Service temporarily overloaded", code: 503, metadata: { error_type: "provider_overloaded" } } };
+  const replies = [() => Response.json(overloaded), answer({ content: "" }), answer({ content: "Use **Renew All**." })];
+  openRouterReply = () => replies.shift()!();
+  const res = await send({ message: "How do I renew loans?" });
+
+  assert.deepEqual(await res.json(), { text: "Use **Renew All**." });
+  const models = calls.filter((c) => c.url.startsWith("https://openrouter.ai/")).map((c) => JSON.parse(c.init.body as string).model);
+  assert.deepEqual(models, ["nvidia/nemotron-3-ultra-550b-a55b:free", "openrouter/free", "openrouter/free"]);
+  // The Usage page shows why the main model failed.
+  const logged = calls.filter((c) => c.url.endsWith("/rest/v1/model_usage")).map((c) => JSON.parse(c.init.body as string));
+  assert.deepEqual(logged[0], { model: "nvidia/nemotron-3-ultra-550b-a55b:free", tool: null, prompt_tokens: null, completion_tokens: null, error: "provider_overloaded" });
+});
+
+test("lets a model that must think do a short think", async () => {
+  const mandatory = { error: { message: "Reasoning is mandatory for this endpoint and cannot be disabled.", code: 400 } };
+  const replies = [() => Response.json(mandatory, { status: 400 }), answer({ content: "Use **Renew All**." })];
+  openRouterReply = () => replies.shift()!();
+  const res = await send({ message: "How do I renew loans?" });
+
+  assert.deepEqual(await res.json(), { text: "Use **Renew All**." });
+  const sent = calls.filter((c) => c.url.startsWith("https://openrouter.ai/")).map((c) => JSON.parse(c.init.body as string).reasoning.effort);
+  assert.deepEqual(sent, ["none", "low"]);
+});
+
 test("says so when every try takes too long", async () => {
   openRouterReply = () => {
     throw new DOMException("The operation timed out.", "TimeoutError");
@@ -354,8 +382,83 @@ test("asks the fallback when the main model is busy for everyone", async () => {
   assert.deepEqual(await res.json(), { text: "Done." });
   const models = calls.filter((c) => c.url.startsWith("https://openrouter.ai/")).map((c) => JSON.parse(c.init.body as string).model);
   assert.deepEqual(models, ["google/gemma-4-31b-it:free", "openrouter/free"]);
+});
+
+test("asks only the main model when it answers quickly", async () => {
+  savedModels = () => Response.json({ main: "nvidia/nemotron-3.5-lightning:free", fallback: "openrouter/free" });
+  openRouterReply = answer({ content: "Use **Renew All**." });
+  const res = await send({ message: "How do I renew loans?" });
+
+  assert.deepEqual(await res.json(), { text: "Use **Renew All**." });
+  const models = calls.filter((c) => c.url.startsWith("https://openrouter.ai/")).map((c) => JSON.parse(c.init.body as string).model);
+  assert.deepEqual(models, ["nvidia/nemotron-3.5-lightning:free"]);
+});
+
+test("puts a Boolean query in a code block when the model leaves the fence off", async () => {
+  const instructions = "### BOOLEAN QUERY PROTOCOL (STRICT MANDATE):\n...";
+  const textFor = async (content: string) => {
+    openRouterReply = answer({ content });
+    return (await (await send({ message: "Missing items", instructions })).json()).text;
+  };
+
+  assert.equal(
+    await textFor('boolean\nLOANCF: 0 + DUEDTE: "< today(-30)"\n\nLOANCF: 0 means it is still out.'),
+    '```boolean\nLOANCF: 0 + DUEDTE: "< today(-30)"\n```\n\nLOANCF: 0 means it is still out.',
+  );
+  assert.equal(await textFor("Boolean query: ITMLOCX: WAI + ITMSCDE: M"), "```boolean\nITMLOCX: WAI + ITMSCDE: M\n```");
+  // Copying this block shouldn't copy the word "boolean" too.
+  assert.equal(await textFor("```\nboolean\nITMSCDE: M\n```\n\nThat's Missing."), "```boolean\nITMSCDE: M\n```\n\nThat's Missing.");
+  assert.equal(
+    await textFor('FORMAT: BRW - (BRWLOAN> (ISSDTE: ">= today(-1825)")) + BRWHI: KCDC\n\nVariables used:\n- BRWHI: KCDC'),
+    '```boolean\nFORMAT: BRW - (BRWLOAN> (ISSDTE: ">= today(-1825)")) + BRWHI: KCDC\n```\n\nVariables used:\n- BRWHI: KCDC',
+  );
+});
+
+test("leaves replies alone when they have no bare query in them", async () => {
+  const boolean = "### BOOLEAN QUERY PROTOCOL (STRICT MANDATE):\n...";
+  const textFor = async (content: string, instructions: string) => {
+    openRouterReply = answer({ content });
+    return (await (await send({ message: "Missing items", instructions })).json()).text;
+  };
+
+  const fenced = "```boolean\nITMSCDE: M\n```\n\nITMSCDE: M\n\nThat one is Missing.";
+  assert.equal(await textFor(fenced, boolean), fenced);
+  const sentence = "ITMLOCX: WAI finds items at Waikanae. What do you need? [[Items]] [[Loans]]";
+  assert.equal(await textFor(sentence, boolean), sentence);
+  // Only Boolean query chats: everyday answers can quote codes.
+  assert.equal(await textFor("ITMSCDE: M", "### GUIDE EXCERPTS\n..."), "ITMSCDE: M");
+});
+
+test("skips thinking for every question, Boolean queries too", async () => {
+  openRouterReply = answer({ content: "```boolean\nITMSCDE: M\n```" });
+  await send({ message: "Missing items", instructions: "### BOOLEAN QUERY PROTOCOL (STRICT MANDATE):\n..." });
+  await send({ message: "How do I renew loans?", instructions: "### GUIDE EXCERPTS\n..." });
+  const efforts = calls.filter((c) => c.url.startsWith("https://openrouter.ai/")).map((c) => JSON.parse(c.init.body as string).reasoning.effort);
+  assert.deepEqual(efforts, ["none", "none"]);
+});
+
+test("asks the fallback too when the main model is slow, and uses the first answer", async () => {
+  savedModels = () => Response.json({ main: "nvidia/nemotron-3-ultra-550b-a55b:free", fallback: "openrouter/free" });
+  let releaseMain!: () => void;
+  const mainHeld = new Promise<void>((resolve) => (releaseMain = resolve));
+  openRouterReply = () => answer({ content: "Use **Renew All**." })();
+  globalThis.fetch = ((original) => (async (input: string, init: RequestInit = {}) => {
+    if (input.startsWith("https://openrouter.ai/") && JSON.parse(init.body as string).model.startsWith("nvidia/")) {
+      calls.push({ url: input, init });
+      // The main model is slow; it only finishes when cancelled.
+      await new Promise<void>((_, reject) => init.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError"))));
+      await mainHeld;
+    }
+    return original(input, init);
+  }) as typeof fetch)(globalThis.fetch);
+  const res = await send({ message: "How do I renew loans?" });
+  releaseMain();
+
+  assert.deepEqual(await res.json(), { text: "Use **Renew All**." });
+  // The cancelled request isn't logged, so it doesn't count towards the daily limit.
   const logged = calls.filter((c) => c.url.endsWith("/rest/v1/model_usage")).map((c) => JSON.parse(c.init.body as string));
-  assert.deepEqual(logged[0], { model: "google/gemma-4-31b-it:free", error: "http_429" });
+  assert.equal(logged.length, 1);
+  assert.equal(logged[0].error, null);
 });
 
 test("says when the OpenRouter key hasn't been set", async () => {

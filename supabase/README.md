@@ -18,7 +18,7 @@ LibSys has its own Supabase project, **LibSys** (`ocexpnnzfglknklsotcd`, Sydney,
 
 | Function | What it does | Verify JWT |
 |---|---|---|
-| [`libsys-chat`](functions/libsys-chat) | The chat. Checks the sign-in, asks the main free model set on the Usage page (then its fallback), turns ink and chat-history requests into emails to the LibSys admin, and logs the model used. | Off, because the code checks the sign-in |
+| [`libsys-chat`](functions/libsys-chat) | The chat. Checks the sign-in, asks the main free model set on the Usage page (and its fallback if the main is slow or fails), turns ink and chat-history requests into emails to the LibSys admin, and logs the model used. | Off, because the code checks the sign-in |
 | [`SOP-Fetch`](functions/SOP-Fetch) | Sends the `LibSysAIKB` guides to signed-in staff. It builds them once per commit, keeping only the files the app reads (no PDFs), and serves the cached copy. Every 5 minutes one page load asks GitHub for the latest commit and rebuilds in the background if it has changed, so guide edits show up within about 5 minutes. | Off, because the code checks the sign-in |
 
 Both functions import [`functions/_shared/library.ts`](functions/_shared/library.ts), the library settings: the site address the chat answers, the ink request wording and the guides repo. The Supabase CLI deploys it with them. When deploying another way, include it as `../_shared/library.ts`.
@@ -49,7 +49,7 @@ See [Adding staff](../GO-LIVE.md#adding-staff). Invites and password resets need
 
 ## Choosing the AI model
 
-Admins pick a **main model** and a **fallback** under **AI model** on the Usage page. The list is OpenRouter's free models, fetched live each time the page opens, so new ones appear and withdrawn ones drop off. Either can be the free router, which picks a free model for each question. Each question goes to the main model first; if it fails, is busy or sends back nothing, the fallback gets one try.
+Admins pick a **main model** and a **fallback** under **AI model** on the Usage page. The list is OpenRouter's free models, fetched live each time the page opens, so new ones appear and withdrawn ones drop off. Either can be the free router, which picks a free model for each question. Each question goes to the main model first. The fallback is asked as well only if the main fails or hasn't answered after 8 seconds, so most questions use one request; whichever answers first is used, and the other request is cancelled and isn't counted. If both fail quickly (an overloaded model fails in a second or two), the fallback gets one more try. Every question, Boolean queries included, skips the models' thinking step (`reasoning.effort: "none"`), which brought typical answers from 13–31 seconds down to 1–4; models that can't skip it get a short think instead. Letting Boolean queries think was tried, but on the free models they often took over a minute and timed out.
 
 - Only free models can be saved (`admin_set_chat_models` refuses anything else), so the chat can't spend the OpenRouter credit.
 - If a saved model is withdrawn, questions still get answered by the fallback, and the Usage page says to pick another. Keeping the free router as the fallback means there's always one that works.

@@ -79,7 +79,7 @@
           <section class="mt-10" aria-labelledby="ai-model-heading">
             <div class="border-b border-line pb-2">
               <h2 id="ai-model-heading" class="text-lg font-semibold">AI model</h2>
-              <p class="text-[13px] text-muted">Which free model answers questions. If the main model fails or sends back nothing, LibSys asks the fallback. The list is OpenRouter's free models as of now.</p>
+              <p class="text-[13px] text-muted">Which free model answers questions. If the main model fails, sends back nothing or takes more than 8 seconds, LibSys asks the fallback too, and the first answer is used. The list is OpenRouter's free models as of now.</p>
             </div>
             <form id="modelForm" class="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end" novalidate>
               <label class="flex min-w-0 flex-col gap-1 text-[13px] text-muted">

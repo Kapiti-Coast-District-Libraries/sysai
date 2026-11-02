@@ -6,8 +6,6 @@ async function logUserRPD(userId: string) {
   const { error } = await supabaseClient.rpc('log_rpd', { uid: userId });
   if (error) {
     console.error('Failed to log RPD:', error.message);
-  } else {
-    console.log('RPD logged for user', userId);
   }
 }
 // The libsys-chat Supabase edge function (source in supabase/functions/libsys-chat).
@@ -49,10 +47,7 @@ const res = await fetch(CHAT_URL, {
     const detail = await res.json().catch(() => null);
     throw new ChatServiceError(detail?.error || "Sorry, I hit a snag, Please try again.");
   }
-const { data: { user } } = await supabaseClient.auth.getUser();
-
-if (user) {
-  await logUserRPD(user.id);
-}
+  // The answer doesn't wait for this.
+  logUserRPD(session.user.id);
   return res.json();
 };

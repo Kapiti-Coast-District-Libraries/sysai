@@ -46,6 +46,25 @@ test("starts Boolean queries and ink requests", () => {
   assert.equal(detectRequest("Cyan", afterColourQuestion), "ink");
 });
 
+test("treats a list of records with a condition as a Boolean query", () => {
+  assert.equal(detectRequest("Loans overdue by 14 days or more", []), "boolean");
+  assert.equal(detectRequest("Overdue loans at Waikanae", []), "boolean");
+  assert.equal(detectRequest("Missing items at Waikanae", []), "boolean");
+  assert.equal(detectRequest("Borrowers expiring this month", []), "boolean");
+  assert.equal(detectRequest("Find all lost items at Paraparaumu", []), "boolean");
+});
+
+test("doesn't mistake a problem with records for a list of them", () => {
+  assert.equal(detectRequest("Items not scanning at the self-check", []), "general");
+  assert.equal(detectRequest("Items are missing from the hold shelf", []), "general");
+  assert.equal(detectRequest("Overdue loans report", []), "general");
+  assert.equal(detectRequest("Borrower can't log in", []), "general");
+  assert.equal(detectRequest("Loans overdue notices aren't sending", []), "general");
+  assert.equal(detectRequest("Lost items", []), "general");
+  assert.equal(detectRequest("Items lost by a customer who moved away and needs a replacement charge", []), "general");
+  assert.equal(detectRequest("Where do missing items at Waikanae go?", []), "general");
+});
+
 test("keeps working on a Boolean query when staff refine it", () => {
   assert.equal(detectRequest("Waikanae", afterBooleanQuery), "boolean");
   assert.equal(detectRequest("Items", afterBooleanQuery), "boolean");
@@ -115,4 +134,9 @@ test("says no guide matched, without doubting earlier answers, when nothing did"
   const guides = sampleGuides();
   const context = knowledge.buildContext("the self-check is beeping loudly and flashing", [], guides, [], []);
   assert.match(context, /No guide matched this message\. That says nothing about earlier answers/);
+});
+
+test("shows how to write an overdue loans query", () => {
+  const context = knowledge.buildContext("Boolean query for loans overdue by more than 30 days", [], sampleGuides(), [], []);
+  assert.match(context, /LOANCF: 0 \+ DUEDTE: "< today\(-30\)"/);
 });

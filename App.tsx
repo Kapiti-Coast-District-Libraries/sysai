@@ -48,11 +48,25 @@ const hastText = (node?: HastNode): string =>
 
 const BOOLEAN_LANGUAGES = ["boolean", "spydus", "query"];
 
+// The older way to copy, for locked-down browsers that block the clipboard API.
+function copyWithSelection(text: string): boolean {
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  const copied = document.execCommand("copy");
+  area.remove();
+  return copied;
+}
+
 // Code blocks in answers, with a copy button. Boolean queries are the main
 // thing staff copy from here into Spydus, along with the subject and message
 // of ink request and chat history emails.
 const CodeBlock: React.FC<{ node?: HastNode }> = ({ node }) => {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const preRef = useRef<HTMLPreElement>(null);
   const code = node?.children?.find(child => child.type === "element");
   const text = hastText(code).replace(/\n$/, "");
   const language = (code?.properties?.className ?? []).find(c => c.startsWith("language-"))?.slice(9) ?? "";
@@ -61,13 +75,16 @@ const CodeBlock: React.FC<{ node?: HastNode }> = ({ node }) => {
     : language.charAt(0).toUpperCase() + language.slice(1);
 
   const copy = async () => {
+    let copied = true;
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Copy failed:", err);
+    } catch {
+      copied = copyWithSelection(text);
     }
+    // If copying is blocked altogether, select the text so Ctrl+C works.
+    if (!copied && preRef.current) window.getSelection()?.selectAllChildren(preRef.current);
+    setCopyState(copied ? "copied" : "failed");
+    setTimeout(() => setCopyState("idle"), copied ? 2000 : 5000);
   };
 
   return (
@@ -79,11 +96,13 @@ const CodeBlock: React.FC<{ node?: HastNode }> = ({ node }) => {
           onClick={copy}
           className="-mr-1.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-ink-soft hover:bg-hover"
         >
-          <Icon name={copied ? "check" : "copy"} className="h-3.5 w-3.5" />
-          <span aria-live="polite">{copied ? "Copied" : "Copy"}</span>
+          <Icon name={copyState === "copied" ? "check" : "copy"} className="h-3.5 w-3.5" />
+          <span aria-live="polite">
+            {copyState === "copied" ? "Copied" : copyState === "failed" ? "Selected: press Ctrl+C" : "Copy"}
+          </span>
         </button>
       </div>
-      <pre>{text}</pre>
+      <pre ref={preRef}>{text}</pre>
     </div>
   );
 };
@@ -342,7 +361,6 @@ async function loadContacts() {
     if (error) console.error('Loading your settings failed:', error.message);
     applySavedSettings(saved?.library);
   }
-  console.log(user);
   try {
     const files = await loadKnowledgeBase();
 
