@@ -52,6 +52,11 @@ test("treats a list of records with a condition as a Boolean query", () => {
   assert.equal(detectRequest("Missing items at Waikanae", []), "boolean");
   assert.equal(detectRequest("Borrowers expiring this month", []), "boolean");
   assert.equal(detectRequest("Find all lost items at Paraparaumu", []), "boolean");
+  assert.equal(detectRequest("Kāpiti borrowers expiring this month", []), "boolean");
+  assert.equal(detectRequest("Upper Hutt's borrowers inactive for 2 years", []), "boolean");
+  assert.equal(detectRequest("Missing items at Upper Hutt Central", []), "boolean");
+  assert.equal(detectRequest("Items with status Claims Returned at Ōtaki", []), "boolean");
+  assert.equal(detectRequest("Inactive borrowers who have not borrowed or reserved in 5 years", []), "boolean");
 });
 
 test("doesn't mistake a problem with records for a list of them", () => {
@@ -63,6 +68,9 @@ test("doesn't mistake a problem with records for a list of them", () => {
   assert.equal(detectRequest("Lost items", []), "general");
   assert.equal(detectRequest("Items lost by a customer who moved away and needs a replacement charge", []), "general");
   assert.equal(detectRequest("Where do missing items at Waikanae go?", []), "general");
+  assert.equal(detectRequest("Upper Hutt items are missing from the hold shelf", []), "general");
+  assert.equal(detectRequest("Items with status Missing keep coming back, why?", []), "general");
+  assert.equal(detectRequest("Expired borrowers who want to renew their card need a new form", []), "general");
 });
 
 test("keeps working on a Boolean query when staff refine it", () => {
@@ -134,6 +142,23 @@ test("says no guide matched, without doubting earlier answers, when nothing did"
   const guides = sampleGuides();
   const context = knowledge.buildContext("the self-check is beeping loudly and flashing", [], guides, [], []);
   assert.match(context, /No guide matched this message\. That says nothing about earlier answers/);
+});
+
+test("finds the code for another library's borrowers", () => {
+  // Tables that match more of the words would otherwise push the Institutions table out.
+  const busy = Array.from({ length: 20 }, (_, i) => ({
+    table_id: `T${i}`,
+    table_description: `Widget ${i}`,
+    rows: [{ id: `W${i}`, description: `Upper Hutt borrowers expiring widget ${i}` }],
+  }));
+  const institutions = {
+    table_id: "INS",
+    table_description: "Institutions",
+    rows: [{ id: "KCDC", description: "Kapiti Coast" }, { id: "UH", description: "Upper Hutt Libraries" }],
+  };
+  const message = "Upper Hutt borrowers expiring this month";
+  assert.equal(detectRequest(message, []), "boolean");
+  assert.match(knowledge.buildContext(message, [], null, [], [...busy, institutions]), /Table ID: INS[\s\S]*ID: UH/);
 });
 
 test("shows how to write an overdue loans query", () => {

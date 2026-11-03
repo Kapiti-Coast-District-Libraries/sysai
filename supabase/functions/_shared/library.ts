@@ -20,8 +20,9 @@ export const library = {
   // The library's own code in Spydus's Institutions table (INS), and that table's
   // description of it. Boolean queries add + BRWHI: <code> for the library's borrowers.
   institution: { code: 'KCDC', name: 'Kapiti Coast' },
-  // Other libraries on the same Spydus database, named in the Boolean query rules.
-  sharedWith: ['Carterton', 'Hutt City'],
+  // Other libraries on the same Spydus database (its Institutions table lists them
+  // all), named in the Boolean query rules.
+  sharedWith: ['Carterton', 'Hutt City', 'Masterton', 'Porirua', 'South Wairarapa', 'Upper Hutt', 'Whitireia/WelTec'],
 
   // Branches with their codes in Spydus's Location Code table (E), in the order
   // staff see them as buttons. The first two are the examples in the Boolean query

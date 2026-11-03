@@ -545,19 +545,38 @@ const NOT_A_LOOKUP_CODE = /\berror codes?\b|\bcode (error|message)\b|\bqr code\b
 // and "Overdue loans report" aren't.
 const RECORD_LIST =
   /^((list|find|show( me)?|all)\s+)?((all|the)\s+)?((overdue|missing|lost|damaged|expired|inactive)\s+(loans|items|borrowers|reservations)\s+(at|in|from|by|for|over|more)\b|(loans|items|borrowers|reservations)\s+(overdue|missing|lost|damaged|expir\w+|inactive)\b)/i;
+// Lists that can run longer and say "not": "Items with status Claims Returned
+// at Ōtaki", "Inactive borrowers who have not borrowed or reserved in 5 years".
+const LONG_RECORD_LIST =
+  /^((list|find|show( me)?|all)\s+)?((all|the)\s+)?((loans|items|borrowers|reservations)\s+with\s+(the\s+|a\s+)?status\b|inactive\s+borrowers\s+who\b)/i;
+const NOT_A_LONG_RECORD_LIST = /\?|\b(reports?|notices?|letters?)\b/i;
 const NOT_A_RECORD_LIST = /\?|\b(reports?|notices?|letters?|fines?|charges?|not|won'?t|can'?t|isn'?t|aren'?t|doesn'?t)\b/i;
 
 function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+// "Upper Hutt borrowers expiring this month" is a list of records too: drops a
+// library or branch name from the start so RECORD_LIST sees "borrowers expiring".
+function withoutLibraryName(text: string): string {
+  const { shortName, sharedWith, branches } = librarySettings();
+  const plain = withoutMacrons(text).toLowerCase();
+  for (const name of [shortName, ...sharedWith, ...branches.map((branch) => branch.name)]) {
+    const start = `${withoutMacrons(name).toLowerCase()} `;
+    if (plain.startsWith(start)) return plain.slice(start.length).trim();
+    if (plain.startsWith(start.replace(/ $/, "'s "))) return plain.slice(start.length + 2).trim();
+  }
+  return text;
+}
+
 function isBooleanRequest(text: string): boolean {
-  const trimmed = text.trim();
+  const trimmed = withoutLibraryName(text.trim());
   return (
     BOOLEAN_WORDS.test(text) ||
     (QUERY_WORD.test(text) && !NOT_A_SPYDUS_QUERY.test(text)) ||
     (CODE_WORD.test(text) && !NOT_A_LOOKUP_CODE.test(text)) ||
-    (RECORD_LIST.test(trimmed) && !NOT_A_RECORD_LIST.test(trimmed) && wordCount(trimmed) <= 8)
+    (RECORD_LIST.test(trimmed) && !NOT_A_RECORD_LIST.test(trimmed) && wordCount(trimmed) <= 8) ||
+    (LONG_RECORD_LIST.test(trimmed) && !NOT_A_LONG_RECORD_LIST.test(trimmed) && wordCount(trimmed) <= 15)
   );
 }
 
@@ -863,9 +882,16 @@ export function searchLKPDescriptions(tables: LKPTable[], inputText: string, top
   return [...picked.values()].slice(0, Math.max(topN, picked.size));
 }
 
-// From the person's library settings, as lookup words: 'otaki', 'kapiti'.
+// From the person's library settings, as lookup words: 'otaki', 'kapiti'. The
+// libraries it shares the database with count too, so "Upper Hutt borrowers"
+// finds the Institutions table as "Kāpiti borrowers" does. Words in many place
+// names ('city', 'upper') are left out so they don't pull it in on their own.
+const PLACE_WORDS = new Set(['city', 'district', 'coast', 'south', 'north', 'upper', 'lower']);
 const branchNames = () => librarySettings().branches.flatMap((branch) => lookupWords(branch.name));
-const libraryWords = () => lookupWords(librarySettings().shortName);
+const libraryWords = () => {
+  const { shortName, sharedWith } = librarySettings();
+  return [shortName, ...sharedWith].flatMap(lookupWords).filter((word) => !PLACE_WORDS.has(word));
+};
 
 const BORROWER_WORDS = ['borrower', 'borrowers', 'borrowed', 'brw'];
 

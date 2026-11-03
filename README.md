@@ -23,7 +23,7 @@ Staff support for Kāpiti Coast Libraries. Staff sign in and ask about Spydus, A
 
 ## Setting LibSys up for another library
 
-Kāpiti's Spydus database is shared with other SMART libraries, so the Boolean query help and the Spydus variable and code lookups work for them too. In the Institutions table (INS), Kāpiti Coast is `KCDC`, Carterton is `CTN` and Hutt City is `LP`.
+Kāpiti's Spydus database is shared with other SMART libraries, so the Boolean query help and the Spydus variable and code lookups work for them too. In the Institutions table (INS), Kāpiti Coast is `KCDC`, Carterton `CTN`, Hutt City `LP`, Masterton `MP`, Porirua City `POP`, South Wairarapa `WLS`, Upper Hutt `UH` and Whitireia/WelTec `PETE`. LibSys answers staff from any library, but the branch codes in its lookups are Kāpiti's, so a query for another library's branch comes with a placeholder to swap for that branch's code.
 
 Everything specific to Kāpiti is in one file, [`supabase/functions/_shared/library.ts`](supabase/functions/_shared/library.ts). The prompts, the guide and code search, the sign-in pages and both edge functions read it. It lives there so the edge functions can deploy with it.
 
